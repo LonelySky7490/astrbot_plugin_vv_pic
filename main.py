@@ -10,10 +10,10 @@ class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
 
-    @filter.command("hello")
-    async def helloworld(self, event: AstrMessageEvent):
-        user_name = event.get_sender_name()
-        yield event.plain_result(f"Hello, {user_name}!")
+    # @filter.command("hello")
+    # async def helloworld(self, event: AstrMessageEvent):
+    #     user_name = event.get_sender_name()
+    #     yield event.plain_result(f"Hello, {user_name}!")
 
     @filter.command("vvhelp")
     async def help(self, event: AstrMessageEvent):
