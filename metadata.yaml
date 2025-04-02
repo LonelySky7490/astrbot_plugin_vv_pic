@@ -1,6 +1,6 @@
 name: vv_pic # 这是你的插件的唯一识别名。
 desc: 发送最符合关键词的vv表情包。 # 插件简短描述
 help: 输入 /vvhelp 查看用法。 # 插件的帮助信息
-version: v0.5 # 插件版本号。格式：v1.1.1 或者 v1.1
+version: v0.6 # 插件版本号。格式：v1.1.1 或者 v1.1
 author: Lonelysky # 作者
 repo: https://github.com/LonelySky7490/astrbot_plugin_vv_pic.git # 插件的仓库地址
