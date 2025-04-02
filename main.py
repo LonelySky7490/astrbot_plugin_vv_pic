@@ -38,12 +38,15 @@ class MyPlugin(Star):
             )
             stdout, stderr = await proc.communicate()
 
-            output = stdout.decode('utf-8', errors='ignore') if stdout else ""
+            output = stdout.decode('utf-8', errors='ignore').strip() if stdout else "" # 要去除首尾转义字符
             error = stderr.decode('utf-8', errors='ignore') if stderr else ""
 
+            # print(output)
             if output:
-                # time.sleep(1)
-                yield event.image_result(os.path.join(current_dir, output).strip())
+                if output == "none":
+                    yield event.plain_result(f"未找到与'{query}'相匹配的结果\n建议尝试使用更简短的关键词")
+                else:
+                    yield event.image_result(os.path.join(current_dir, output).strip())
             if error:
                 yield event.plain_result(f"错误：\n{error}")
 

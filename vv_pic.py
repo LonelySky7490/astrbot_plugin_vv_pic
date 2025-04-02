@@ -17,19 +17,77 @@ class PreviewExtractor:
     def __init__(self, base_url: str = "https://vv.noxylva.org"):
         self.base_url = base_url
         self.session = requests.Session()
+        self.session.headers.update({
+            "Accept-Encoding": "identity"  # 强制禁用压缩
+        })
         self.timeout = 10  # 适当增加超时时间
 
     def _fetch_index(self, group_index: int) -> bytes:
-        """下载索引文件"""
         try:
             index_url = f"{self.base_url}/{group_index}.index"
-            response = self.session.get(index_url, timeout=self.timeout)
+            # 强制禁用所有自动解压
+            response = self.session.get(
+                index_url,
+                timeout=self.timeout,
+                headers={"Accept-Encoding": "identity"},  # 关键！
+                stream=True
+            )
             response.raise_for_status()
-            return response.content
+
+            raw_data = response.content
+
+            # 先处理 aws-chunked 分块
+            if "aws-chunked" in response.headers.get("content-encoding", ""):
+                raw_data = self._decode_aws_chunked(raw_data)
+
+            # 再处理 gzip 压缩
+            if "gzip" in response.headers.get("content-encoding", ""):
+                import zlib
+                try:
+                    # 尝试自动检测 gzip/zlib 头
+                    decompressor = zlib.decompressobj(zlib.MAX_WBITS | 32)
+                    return decompressor.decompress(raw_data)
+                except zlib.error:
+                    # 如果失败，尝试原始数据（可能已解压）
+                    return raw_data
+
+            return raw_data
+
         except Exception as e:
             logger.error(f"索引下载失败: {group_index}.index - {str(e)}")
             raise
 
+    def _decode_aws_chunked(self, data: bytes) -> bytes:
+        """解析 AWS 分块编码"""
+        decoded = bytearray()
+        pos = 0
+
+        while pos < len(data):
+            # 查找分块大小行
+            chunk_end = data.find(b"\r\n", pos)
+            if chunk_end == -1:
+                break
+
+            chunk_size_line = data[pos:chunk_end]
+            try:
+                chunk_size = int(chunk_size_line, 16)
+            except ValueError:
+                break
+
+            if chunk_size == 0:
+                break  # 结束标志
+
+            # 定位分块数据起始位置
+            chunk_start = chunk_end + 2
+            chunk_data_end = chunk_start + chunk_size
+
+            if chunk_data_end > len(data):
+                break
+
+            decoded.extend(data[chunk_start:chunk_data_end])
+            pos = chunk_data_end + 2  # 跳过结尾的 \r\n
+
+        return bytes(decoded)
     def _parse_index(self, index_data: bytes, folder_id: int, frame_num: int) -> Optional[Tuple[int, int]]:
         """解析二进制索引定位图片位置"""
         try:
@@ -121,12 +179,15 @@ def download_images(query: str, min_ratio: int = 50, min_similarity: float = 0.5
         for line in response.text.splitlines():
             if line.strip():
                 try:
-                    results.append(json.loads(line))
+                    item = json.loads(line)
+                    # 添加对必要字段的检查
+                    if all(key in item for key in ['filename', 'timestamp', 'similarity']):
+                        results.append(item)
                 except json.JSONDecodeError:
                     continue
 
         if not results:
-            logger.info("无搜索结果")
+            print("none", flush=True)
             return
 
         # 开始下载
